@@ -1,10 +1,24 @@
 import pandas as pd
 import numpy as np
 import sys
+import os
+
+# Add project root to path for imports
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 ticker = sys.argv[1] if len(sys.argv) > 1 else input("Enter the stock ticker you want to process (e.g., AAPL): ").strip().upper()
-input_path = f"../raw_data/{ticker}_stock_data.csv"
-output_path = f"../processed_data/{ticker}_indicators.csv"
+
+# Create absolute paths
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+raw_data_dir = os.path.join(project_root, "raw_data")
+processed_data_dir = os.path.join(project_root, "processed_data")
+
+# Create directories if they don't exist
+os.makedirs(raw_data_dir, exist_ok=True)
+os.makedirs(processed_data_dir, exist_ok=True)
+
+input_path = os.path.join(raw_data_dir, f"{ticker}_stock_data.csv")
+output_path = os.path.join(processed_data_dir, f"{ticker}_indicators.csv")
 
 df = pd.read_csv(input_path)
 df = df.sort_values('date')
@@ -25,4 +39,4 @@ rs = avg_gain / avg_loss
 df['RSI_14'] = 100 - (100 / (1 + rs))
 
 df.to_csv(output_path, index=False)
-print(f"✅ Indicators saved to {output_path}")
+print(f"Indicators saved to {output_path}")

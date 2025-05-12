@@ -1,15 +1,12 @@
 import subprocess
-import os
 import sys
+from db_utils import MongoDBClient
+
+# Initialize MongoDB client
+db_client = MongoDBClient()
 
 # User input
 ticker = input("Enter the stock ticker (e.g., AAPL, TSLA): ").strip().upper()
-
-# Paths
-raw_path = f"../raw_data/{ticker}_stock_data.csv"
-processed_path = f"../processed_data/{ticker}_indicators.csv"
-hdfs_dir = f"/user/ayush/financial_project/processed_data/"
-hive_script_path = "../hadoop_scripts/create_stock_table.hql"
 
 # === Step 1: Fetch Stock Data ===
 print(f"\n📥 Fetching stock data for {ticker}...")
@@ -20,27 +17,25 @@ except subprocess.CalledProcessError:
     sys.exit(1)
 
 # === Step 2: Process Indicators ===
-print(f"\n⚙️ Processing indicators for {ticker}...")
+print(f"\n🔄 Processing indicators for {ticker}...")
 try:
     subprocess.run(["python", "process_indicators.py"], check=True)
 except subprocess.CalledProcessError:
     print("❌ Error processing indicators.")
     sys.exit(1)
 
-# === Step 3: Upload to HDFS ===
-print(f"\n🚀 Uploading {ticker}_indicators.csv to HDFS...")
+# === Step 3: Store in MongoDB ===
+print(f"\n🚀 Storing {ticker} data in MongoDB...")
 try:
-    subprocess.run(["python", "upload_to_hdfs.py"], check=True)
-except subprocess.CalledProcessError:
-    print("❌ HDFS upload failed.")
-    sys.exit(1)
-
-# === Step 4: Run Hive Script ===
-print(f"\n📊 Running Hive script...")
-try:
-    subprocess.run(f'cmd /c "hive -f {hive_script_path}"', shell=True, check=True)
-except subprocess.CalledProcessError:
-    print("❌ Hive script execution failed.")
+    # Read the processed data
+    import pandas as pd
+    data = pd.read_csv(f"../processed_data/{ticker}_indicators.csv")
+    
+    # Store in MongoDB
+    records_stored = db_client.store_stock_data(ticker, data)
+    print(f"✅ Stored {records_stored} records in MongoDB")
+except Exception as e:
+    print(f"❌ MongoDB storage failed: {str(e)}")
     sys.exit(1)
 
 print(f"\n✅ Pipeline for {ticker} completed successfully!")
