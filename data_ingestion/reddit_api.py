@@ -137,20 +137,12 @@ class RedditAnalyzer:
             except Exception as e:
                 print(f"❌ Error processing r/{subreddit}: {str(e)}")
         
-        # Store in MongoDB
+        # Store in MongoDB using the new folder structure
         if all_posts:
-            collection = self.db_client.db[f'{ticker.lower()}_reddit']
-            collection.create_index([('ticker', 1), ('created_utc', 1)])
-            
-            # Convert to proper format for MongoDB
-            for post in all_posts:
-                collection.update_one(
-                    {'permalink': post['permalink']},
-                    {'$set': post},
-                    upsert=True
-                )
-            
-            print(f"✅ Stored {len(all_posts)} Reddit posts for {ticker}")
+            # Use the store_reddit_data method in db_utils
+            stored_count = self.db_client.store_reddit_data(ticker, all_posts)
+            print(f"✅ Stored {len(all_posts)} Reddit posts for {ticker} in reddit_data folder")
+        
         
         return pd.DataFrame(all_posts)
     

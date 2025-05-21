@@ -16,9 +16,20 @@ class MongoDBClient:
         
         self.client = MongoClient(mongodb_uri)
         self.db = self.client[db_name]
+        
+        # Define collection prefixes (folders)
+        self.collection_prefixes = {
+            'stock_data': 'stock_data.',
+            'economic_indicators': 'economic_indicators.',
+            'reddit_data': 'reddit_data.',
+            'twitter_data': 'twitter_data.',
+            'news_data': 'news_data.'
+        }
     
     def store_stock_data(self, ticker: str, data: pd.DataFrame):
-        collection = self.db[f'{ticker.lower()}_stock_data']
+        # Use the stock_data folder prefix
+        collection_name = f"{self.collection_prefixes['stock_data']}{ticker.lower()}"
+        collection = self.db[collection_name]
         
         # Convert DataFrame to list of dictionaries
         records = data.to_dict('records')
@@ -38,7 +49,7 @@ class MongoDBClient:
         if existing_count == 0:
             # If no existing data, just insert all records
             collection.insert_many(records)
-            print(f"Inserted {len(records)} new records into MongoDB for {ticker}")
+            print(f"Inserted {len(records)} new records into MongoDB for {ticker} in stock_data folder")
         else:
             # If data exists, use bulk upsert to update existing records and add new ones
             bulk_operations = []
@@ -54,7 +65,7 @@ class MongoDBClient:
             
             if bulk_operations:
                 result = collection.bulk_write(bulk_operations)
-                print(f"MongoDB upsert results for {ticker}: {result.upserted_count} inserted, {result.modified_count} modified")
+                print(f"MongoDB upsert results for {ticker} in stock_data folder: {result.upserted_count} inserted, {result.modified_count} modified")
         
         # Verify data was stored correctly
         stored_count = collection.count_documents({})
@@ -62,6 +73,127 @@ class MongoDBClient:
         return stored_count
     
     def get_stock_data(self, ticker: str) -> pd.DataFrame:
-        collection = self.db[f'{ticker.lower()}_stock_data']
+        collection_name = f"{self.collection_prefixes['stock_data']}{ticker.lower()}"
+        collection = self.db[collection_name]
         data = list(collection.find({}, {'_id': 0}).sort('date', 1))
         return pd.DataFrame(data)
+    
+    def store_economic_data(self, ticker: str, data: pd.DataFrame):
+        # Store economic indicators data
+        collection_name = f"{self.collection_prefixes['economic_indicators']}{ticker.lower()}"
+        collection = self.db[collection_name]
+        
+        # Convert DataFrame to list of dictionaries
+        records = data.to_dict('records')
+        
+        # Convert date strings to datetime objects
+        for record in records:
+            if isinstance(record.get('date'), str):
+                record['date'] = datetime.strptime(record['date'], '%Y-%m-%d')
+        
+        # Create index on date field
+        collection.create_index('date')
+        
+        # Use upsert approach
+        bulk_operations = []
+        for record in records:
+            bulk_operations.append(
+                UpdateOne(
+                    {'date': record['date'], 'indicator': record.get('indicator')},
+                    {'$set': record},
+                    upsert=True
+                )
+            )
+        
+        if bulk_operations:
+            result = collection.bulk_write(bulk_operations)
+            print(f"Economic data stored: {result.upserted_count} inserted, {result.modified_count} modified")
+        
+        return collection.count_documents({})
+    
+    def store_reddit_data(self, ticker: str, data_list):
+        # Store Reddit data
+        collection_name = f"{self.collection_prefixes['reddit_data']}{ticker.lower()}"
+        collection = self.db[collection_name]
+        
+        # Create compound index on permalink to ensure uniqueness
+        collection.create_index('permalink', unique=True)
+        
+        # Use upsert for each post
+        bulk_operations = []
+        for post in data_list:
+            bulk_operations.append(
+                UpdateOne(
+                    {'permalink': post['permalink']},
+                    {'$set': post},
+                    upsert=True
+                )
+            )
+        
+        if bulk_operations:
+            result = collection.bulk_write(bulk_operations)
+            print(f"Reddit data stored for {ticker}: {result.upserted_count} inserted, {result.modified_count} modified")
+        
+        return collection.count_documents({})
+    
+    def store_twitter_data(self, ticker: str, data_list):
+        # Store Twitter data
+        collection_name = f"{self.collection_prefixes['twitter_data']}{ticker.lower()}"
+        collection = self.db[collection_name]
+        
+        # Create index on created_at and author_id
+        collection.create_index([('author_id', 1), ('created_at', 1)])
+        
+        # Use upsert for each tweet
+        bulk_operations = []
+        for tweet in data_list:
+            # Ensure tweet has an identifier
+            if 'id' not in tweet and 'tweet_id' not in tweet:
+                # Use author_id + created_at as a composite key if no ID
+                bulk_operations.append(
+                    UpdateOne(
+                        {'author_id': tweet['author_id'], 'created_at': tweet['created_at']},
+                        {'$set': tweet},
+                        upsert=True
+                    )
+                )
+            else:
+                tweet_id = tweet.get('id') or tweet.get('tweet_id')
+                bulk_operations.append(
+                    UpdateOne(
+                        {'id': tweet_id},
+                        {'$set': tweet},
+                        upsert=True
+                    )
+                )
+        
+        if bulk_operations:
+            result = collection.bulk_write(bulk_operations)
+            print(f"Twitter data stored for {ticker}: {result.upserted_count} inserted, {result.modified_count} modified")
+        
+        return collection.count_documents({})
+    
+    def store_news_data(self, ticker: str, data_list):
+        # Store news data
+        collection_name = f"{self.collection_prefixes['news_data']}{ticker.lower()}"
+        collection = self.db[collection_name]
+        
+        # Create index on published_at and url
+        collection.create_index([('publishedAt', 1), ('url', 1)])
+        
+        # Use upsert for each article
+        bulk_operations = []
+        for article in data_list:
+            bulk_operations.append(
+                UpdateOne(
+                    {'url': article['url']},
+                    {'$set': article},
+                    upsert=True
+                )
+            )
+        
+        if bulk_operations:
+            result = collection.bulk_write(bulk_operations)
+            print(f"News data stored for {ticker}: {result.upserted_count} inserted, {result.modified_count} modified")
+        
+        return collection.count_documents({})

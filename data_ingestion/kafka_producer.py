@@ -2,12 +2,16 @@ import json
 import time
 import random
 import logging
+import os
+import sys
+import uuid
 from datetime import datetime
-from kafka import KafkaProducer
-import pandas as pd
+from confluent_kafka import Producer
 import requests
 from alpha_vantage.timeseries import TimeSeries
-import os
+
+# Add project root to path to import config
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 # Configure logging
 logging.basicConfig(
@@ -16,28 +20,136 @@ logging.basicConfig(
 )
 logger = logging.getLogger('kafka_producer')
 
-class StockDataProducer:
+class FinancialDataProducer:
     def __init__(self, bootstrap_servers='localhost:9092'):
-        """Initialize Kafka producer for stock data streaming"""
+        """Initialize Kafka producer for financial data streaming"""
         self.bootstrap_servers = bootstrap_servers
-        self.api_key = os.environ.get('ALPHA_VANTAGE_API_KEY', 'UWDNXAGGFFB6TT01')
+        self.producer_config = {
+            'bootstrap.servers': bootstrap_servers,
+            'client.id': f'financial_data_producer_{uuid.uuid4().hex[:8]}'
+        }
+        self.producer = Producer(self.producer_config)
+        self.running = False
         
-        # Initialize Kafka producer
-        try:
-            self.producer = KafkaProducer(
-                bootstrap_servers=self.bootstrap_servers,
-                value_serializer=lambda v: json.dumps(v).encode('utf-8'),
-                key_serializer=lambda k: k.encode('utf-8') if k else None
-            )
-            logger.info(f"✅ Kafka producer connected to {bootstrap_servers}")
-        except Exception as e:
-            logger.error(f"❌ Failed to connect to Kafka: {str(e)}")
-            self.producer = None
+        # Define topic prefixes for different data types
+        self.topic_prefixes = {
+            'stock_data': 'stock_data_',
+            'indicators': 'indicators_',
+            'news': 'financial_news_',
+            'twitter': 'twitter_sentiment_',
+            'reddit': 'reddit_sentiment_',
+            'economic': 'economic_indicators_'
+        }
     
+    def delivery_report(self, err, msg):
+        """Callback for message delivery reports"""
+        if err is not None:
+            logger.error(f"Message delivery failed: {err}")
+        else:
+            logger.info(f"Message delivered to {msg.topic()} [{msg.partition()}]")
+    
+    def get_topic_name(self, data_type, identifier):
+        """Get the topic name for a specific data type and identifier"""
+        if data_type in self.topic_prefixes:
+            # For economic indicators, we use a general topic
+            if data_type == 'economic' and identifier == 'general':
+                return f"{self.topic_prefixes[data_type]}general"
+            # For all other data types, we append the identifier (usually ticker)
+            return f"{self.topic_prefixes[data_type]}{identifier.lower()}"
+        else:
+            # Default to using data_type as the topic name
+            return f"{data_type}_{identifier.lower()}"
+    
+    def produce_message(self, data_type, identifier, data, key=None):
+        """Produce a message to a Kafka topic
+        
+        Args:
+            data_type (str): Type of data ('stock_data', 'indicators', 'news', etc.)
+            identifier (str): Identifier for the data (ticker symbol, 'general', etc.)
+            data (dict): Data to be sent
+            key (str, optional): Message key for partitioning
+        """
+        topic = self.get_topic_name(data_type, identifier)
+        
+        try:
+            # Add metadata if not present
+            if 'timestamp' not in data:
+                data['timestamp'] = datetime.now().isoformat()
+            if 'ticker' not in data and data_type != 'economic':
+                data['ticker'] = identifier.upper()
+            
+            # Convert data to JSON
+            message = json.dumps(data).encode('utf-8')
+            
+            # Encode key if provided
+            key_bytes = key.encode('utf-8') if key else None
+            
+            # Produce message
+            self.producer.produce(
+                topic=topic,
+                value=message,
+                key=key_bytes,
+                callback=self.delivery_report
+            )
+            
+            # Poll to handle delivery reports
+            self.producer.poll(0)
+            
+            logger.info(f"Produced message to {topic}")
+            return True
+        except Exception as e:
+            logger.error(f"Error producing message to {topic}: {str(e)}")
+            return False
+    
+    def produce_stock_data(self, ticker, data):
+        """Produce stock data for a specific ticker"""
+        return self.produce_message('stock_data', ticker, data, key=ticker)
+    
+    def produce_indicator_data(self, ticker, indicator_name, data):
+        """Produce technical indicator data for a specific ticker"""
+        data['indicator'] = indicator_name
+        return self.produce_message('indicators', ticker, data, key=ticker)
+    
+    def produce_news_data(self, ticker, news_data):
+        """Produce financial news data for a specific ticker"""
+        return self.produce_message('news', ticker, news_data, key=ticker)
+    
+    def produce_twitter_sentiment(self, ticker, sentiment_data):
+        """Produce Twitter sentiment data for a specific ticker"""
+        return self.produce_message('twitter', ticker, sentiment_data, key=ticker)
+    
+    def produce_reddit_sentiment(self, ticker, sentiment_data):
+        """Produce Reddit sentiment data for a specific ticker"""
+        return self.produce_message('reddit', ticker, sentiment_data, key=ticker)
+    
+    def produce_economic_data(self, indicator_name, data):
+        """Produce economic indicator data"""
+        data['indicator'] = indicator_name
+        return self.produce_message('economic', 'general', data)
+    
+    def flush(self):
+        """Flush the producer to ensure all messages are sent"""
+        self.producer.flush()
+        logger.info("Producer flushed")
+    
+    def stop(self):
+        """Stop the producer"""
+        self.running = False
+        self.flush()
+        logger.info("Producer stopped")
+
+
+# For backward compatibility
+class StockDataProducer(FinancialDataProducer):
+    def __init__(self, bootstrap_servers='localhost:9092', topic_prefix='stock_data_'):
+        """Initialize Kafka producer for stock data streaming with backward compatibility"""
+        super().__init__(bootstrap_servers)
+        self.topic_prefix = topic_prefix
+
     def fetch_intraday_data(self, ticker, interval='1min'):
         """Fetch intraday data from Alpha Vantage"""
         try:
-            ts = TimeSeries(key=self.api_key, output_format='pandas')
+            ts = TimeSeries(key=os.environ.get('ALPHA_VANTAGE_API_KEY', 'UWDNXAGGFFB6TT01'), output_format='pandas')
             data, _ = ts.get_intraday(symbol=ticker, interval=interval, outputsize='compact')
             logger.info(f"✅ Fetched intraday data for {ticker}")
             return data
@@ -48,7 +160,7 @@ class StockDataProducer:
     def fetch_latest_quote(self, ticker):
         """Fetch latest quote data from Alpha Vantage"""
         try:
-            url = f'https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol={ticker}&apikey={self.api_key}'
+            url = f'https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol={ticker}&apikey={os.environ.get("ALPHA_VANTAGE_API_KEY", "UWDNXAGGFFB6TT01")}'
             r = requests.get(url)
             data = r.json()
             

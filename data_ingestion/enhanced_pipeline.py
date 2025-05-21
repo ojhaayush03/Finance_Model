@@ -179,13 +179,12 @@ class EnhancedDataPipeline:
                     
                     tweets.append(tweet_data)
                 
-                # Store in MongoDB
+                # Store in MongoDB using the new folder structure
                 if tweets:
-                    collection = self.db_client.db[f'{ticker.lower()}_social']
-                    collection.create_index([('platform', 1), ('created_at', 1)])
-                    collection.insert_many(tweets)
+                    # Use the store_twitter_data method from db_utils
+                    stored_count = self.db_client.store_twitter_data(ticker, tweets)
                     
-                    logger.info(f"Analyzed {len(tweets)} Twitter posts for {ticker}")
+                    logger.info(f"Analyzed {len(tweets)} Twitter posts for {ticker} and stored in twitter_data folder")
                     return True
                 else:
                     logger.warning(f"No Twitter data found for {ticker}")

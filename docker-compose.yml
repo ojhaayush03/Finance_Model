@@ -1,0 +1,146 @@
+version: '3.8'
+
+services:
+  # Zookeeper service (required for Kafka)
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.3.0
+    container_name: zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    volumes:
+      - zookeeper-data:/var/lib/zookeeper/data
+      - zookeeper-log:/var/lib/zookeeper/log
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "2181"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Kafka service
+  kafka:
+    image: confluentinc/cp-kafka:7.3.0
+    container_name: kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Kafka UI for monitoring
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    depends_on:
+      - kafka
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+
+  # MongoDB service
+  mongodb:
+    image: mongo:6.0
+    container_name: mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb-data:/data/db
+    environment:
+      MONGO_INITDB_DATABASE: financial_db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # MongoDB Express for database management
+  mongo-express:
+    image: mongo-express:latest
+    container_name: mongo-express
+    depends_on:
+      - mongodb
+    ports:
+      - "8081:8081"
+    environment:
+      ME_CONFIG_MONGODB_SERVER: mongodb
+      ME_CONFIG_MONGODB_PORT: 27017
+      ME_CONFIG_BASICAUTH_USERNAME: admin
+      ME_CONFIG_BASICAUTH_PASSWORD: password
+    restart: unless-stopped
+
+  # Financial Trends Application - Historical Data Loader
+  financial-loader:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: financial-loader
+    depends_on:
+      kafka:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+    volumes:
+      - ./config.py:/app/config.py
+      - ./raw_data:/app/raw_data
+      - ./processed_data:/app/processed_data
+      - ./logs:/app/logs
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      MONGODB_URI: mongodb://mongodb:27017/
+      MONGODB_DB_NAME: financial_db
+      PYTHONUNBUFFERED: 1
+    command: >
+      python run_streaming_pipeline.py AAPL MSFT TSLA --initial-load --skip-twitter
+    # No healthcheck needed as this is a one-time job
+    restart: on-failure:3
+
+  # Financial Trends Application - Streaming Service
+  financial-streaming:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: financial-streaming
+    depends_on:
+      kafka:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+    volumes:
+      - ./config.py:/app/config.py
+      - ./raw_data:/app/raw_data
+      - ./processed_data:/app/processed_data
+      - ./logs:/app/logs
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      MONGODB_URI: mongodb://mongodb:27017/
+      MONGODB_DB_NAME: financial_db
+      PYTHONUNBUFFERED: 1
+    command: >
+      python data_ingestion/kafka_integration.py AAPL MSFT TSLA --interval 60
+    restart: unless-stopped
+
+volumes:
+  zookeeper-data:
+  zookeeper-log:
+  kafka-data:
+  mongodb-data:
