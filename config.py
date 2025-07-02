@@ -6,7 +6,7 @@ IMPORTANT: Do not commit this file to version control!
 import os
 
 # Alpha Vantage API key (for stock data)
-ALPHA_VANTAGE_API_KEY = "UWDNXAGGFFB6TT01"  # Your existing key
+ALPHA_VANTAGE_API_KEY = "IT20PZQPSZOI21B2"  # Your existing key
 
 # NewsAPI key (for financial news)
 NEWS_API_KEY = "your_news_api_key_here"

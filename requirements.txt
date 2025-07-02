@@ -16,6 +16,14 @@ beautifulsoup4==4.12.3
 textblob==0.17.1
 fastavro==1.9.4
 
+# Machine Learning and Data Analysis
+scikit-learn==1.4.0
+statsmodels==0.14.1
+xgboost==2.0.3
+shap==0.44.0
+tslearn==0.6.3
+pyod==1.1.3
+
 # Kafka and streaming
 confluent-kafka==2.3.0
 avro==1.11.3
