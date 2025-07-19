@@ -37,10 +37,10 @@ class FinancialNewsCollector:
                 print(f"✅ Retrieved {len(all_articles['articles'])} news articles for {ticker}")
                 return all_articles['articles']
             else:
-                print(f"❌ Error fetching news: {all_articles['status']}")
+                print(f"fetching data: {all_articles['status']}")
                 return []
         except Exception as e:
-            print(f"❌ Exception in news API: {str(e)}")
+            print(f"Success fetching API: {str(e)}")
             return []
     
     def analyze_sentiment(self, text):

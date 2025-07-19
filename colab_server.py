@@ -9,7 +9,9 @@ import threading
 import time
 
 # Import your prediction functions
-from colab_pyspark_predictor import ColabPySparkStockPredictor, run_colab_prediction
+from colab_pyspark_predictor import ColabPySparkStockPredictor
+# Import financial visualizer
+from financial_visualizer import FinancialVisualizer
 
 # Create Flask app
 app = Flask(__name__)
@@ -19,8 +21,58 @@ CORS(app)  # Enable CORS for all routes
 def health_check():
     return jsonify({"status": "ok"})
 
-# Global predictor instance to reuse the SparkContext
+@app.route('/visualize', methods=['POST'])
+def visualize():
+    data = request.json
+    ticker = data.get('ticker', 'TSLA')
+    days = data.get('days', 30)
+    
+    print(f"Received visualization request for {ticker}, {days} days")
+    
+    global predictor_instance, visualizer_instance
+    try:
+        # Create predictor instance if it doesn't exist or reuse existing one
+        if predictor_instance is None:
+            print("Creating new predictor instance...")
+            predictor_instance = ColabPySparkStockPredictor()
+            print("Predictor initialized successfully")
+        else:
+            print("Reusing existing predictor instance")
+        
+        # Create visualizer instance if it doesn't exist
+        if visualizer_instance is None:
+            print("Creating new visualizer instance...")
+            visualizer_instance = FinancialVisualizer(mongo_client=predictor_instance.mongo_client)
+            print("Visualizer initialized successfully")
+        
+        # Generate visualizations
+        print(f"Generating visualizations for {ticker}...")
+        images = visualizer_instance.generate_visualizations(ticker, days)
+        
+        if images:
+            return jsonify({
+                "status": "success",
+                "ticker": ticker,
+                "days": days,
+                "visualizations": images
+            })
+        else:
+            return jsonify({
+                "status": "error",
+                "message": f"Failed to generate visualizations for {ticker}"
+            }), 400
+            
+    except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"Error in visualization: {e}")
+        print(f"Error trace: {error_trace}")
+        
+        return jsonify({"error": str(e), "trace": error_trace}), 500
+
+# Global instances to reuse the SparkContext and MongoDB connection
 predictor_instance = None
+visualizer_instance = None
 
 @app.route('/predict', methods=['POST'])
 def predict():
@@ -30,7 +82,7 @@ def predict():
     
     print(f"Received prediction request for {ticker}, {days} days")
     
-    global predictor_instance
+    global predictor_instance, visualizer_instance
     try:
         # Create predictor instance if it doesn't exist or reuse existing one
         if predictor_instance is None:
@@ -49,10 +101,24 @@ def predict():
             # Don't clean up on MongoDB error - we can reuse the SparkContext
             return jsonify({"error": f"MongoDB connection failed: {str(mongo_err)}"}), 500
         
+        # Create visualizer instance if it doesn't exist
+        if visualizer_instance is None:
+            print("Creating new visualizer instance...")
+            visualizer_instance = FinancialVisualizer(mongo_client=predictor_instance.mongo_client)
+            print("Visualizer initialized successfully")
+        
+        # Generate visualizations
+        print(f"Generating visualizations for {ticker}...")
+        images = visualizer_instance.generate_visualizations(ticker, days)
+        
         # Run prediction pipeline
         print(f"Starting prediction pipeline for {ticker}...")
         results = predictor_instance.run_prediction_pipeline(ticker, days)
         print("Prediction completed successfully")
+        
+        # Add visualizations to results
+        if images:
+            results["visualizations"] = images
         
         return jsonify(results)
     except Exception as e:

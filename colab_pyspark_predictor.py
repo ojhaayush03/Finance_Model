@@ -777,7 +777,17 @@ class ColabPySparkStockPredictor:
             try:
                 print(f"🔍 Debug - About to make prediction for day {day+1}")
                 prediction_result = model.transform(scaled_df)
-                raw_prediction = prediction_result.select("prediction").collect()[0]["prediction"]
+                
+                # Check if prediction result is empty
+                prediction_collect = prediction_result.select("prediction").collect()
+                if not prediction_collect:
+                    print(f"⚠️ Warning: Empty prediction result for day {day+1}")
+                    # Use last close price as fallback with a small random adjustment
+                    import random
+                    raw_prediction = last_close * (1 + random.uniform(-0.01, 0.01))
+                    print(f"Using fallback prediction: {raw_prediction}")
+                else:
+                    raw_prediction = prediction_collect[0]["prediction"]
                 
                 # Apply realistic market behavior with sentiment and volatility
                 current_price = float(last_close)
@@ -986,12 +996,8 @@ class ColabPySparkStockPredictor:
                 if not self.spark.sparkContext._jsc.sc().isStopped():
                     print("Stopping SparkContext...")
                     self.spark.stop()
-                    print("SparkContext stopped successfully")
-                else:
-                    print("SparkContext already stopped")
             except Exception as e:
                 print(f"Warning: Error while stopping SparkContext: {e}")
-        
         if self.mongo_client:
             try:
                 self.mongo_client.close()

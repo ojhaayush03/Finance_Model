@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Get ngrok URL from environment variables
-NGROK_URL = os.getenv("NGROK_URL", "https://068a-34-73-183-71.ngrok-free.app/")
+NGROK_URL = os.getenv("NGROK_URL", "https://1c27-34-27-171-29.ngrok-free.app/")
 
 # Function to get the ngrok URL
 def get_ngrok_url():
@@ -28,6 +28,14 @@ def get_health_endpoint():
     if url.endswith('/'):
         url = url[:-1]
     return f"{url}/health"
+
+# Function to get the visualization endpoint
+def get_visualization_endpoint():
+    url = NGROK_URL
+    # Clean up URL if needed
+    if url.endswith('/'):
+        url = url[:-1]
+    return f"{url}/visualize"
 
 # Print configuration on import
 print(f"Loaded environment configuration. NGROK_URL: {NGROK_URL}")

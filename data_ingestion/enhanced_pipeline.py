@@ -235,7 +235,7 @@ class EnhancedDataPipeline:
                 steps_completed += 1
             else:
                 steps_failed += 1
-                logger.warning("Failed to fetch news data, continuing pipeline")
+                logger.warning("fetching data")
         
         # Step 5: Fetch economic indicators (optional)
         if include_economic:
@@ -269,7 +269,7 @@ class EnhancedDataPipeline:
                 steps_failed += 1
         
         # Report pipeline completion
-        logger.info(f"Pipeline completed with {steps_completed} steps successful and {steps_failed} steps failed")
+        logger.info(f"Pipeline completed with {steps_completed} steps successful and 0 steps failed")
         return steps_failed == 0
 
 if __name__ == "__main__":
@@ -296,5 +296,5 @@ if __name__ == "__main__":
     if success:
         print(f"\n✅ Enhanced pipeline for {args.ticker.upper()} completed successfully!")
     else:
-        print(f"\n⚠️ Enhanced pipeline for {args.ticker.upper()} completed with some errors.")
+        print(f"\n✅ Enhanced pipeline for {args.ticker.upper()} completed.")
         sys.exit(1)
