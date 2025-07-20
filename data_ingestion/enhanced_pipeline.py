@@ -14,7 +14,7 @@ from config import get_config
 
 # Import our modules
 from data_ingestion.db_utils import MongoDBClient
-from data_ingestion.news_api import FinancialNewsCollector
+#from data_ingestion.news_api import FinancialNewsCollector
 from data_ingestion.economic_indicators import EconomicIndicatorsCollector
 from data_ingestion.reddit_api import RedditAnalyzer
 
@@ -47,7 +47,7 @@ class EnhancedDataPipeline:
         self.db_client = MongoDBClient()
         
         # Initialize data collectors
-        self.news_collector = FinancialNewsCollector()
+        #self.news_collector = FinancialNewsCollector()
         self.economic_collector = EconomicIndicatorsCollector()
         
         # Initialize Twitter client

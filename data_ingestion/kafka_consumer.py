@@ -19,9 +19,7 @@ except ImportError:
         # Last resort - import directly using absolute path
         import importlib.util
         
-        module_path = os.path.join(os.path.dirname(__file__), 'db_utils.py')
-        if not os.path.exists(module_path):
-            module_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data_ingestion', 'db_utils.py')
+        module_path = os.path.join(os.path.dirname(__file__), '..', 'db_utils.py')
         
         spec = importlib.util.spec_from_file_location("db_utils", module_path)
         db_utils = importlib.util.module_from_spec(spec)
@@ -288,7 +286,7 @@ if __name__ == "__main__":
     
     try:
         # Start consuming
-        consumer.start_consuming(tickers)
+        consumer.consume_multiple_tickers(tickers)
         
         # Keep running until user interrupts
         print("Press Ctrl+C to stop consuming...")
@@ -297,5 +295,5 @@ if __name__ == "__main__":
             
     except KeyboardInterrupt:
         print("Stopping consumers...")
-        consumer.stop_consuming()
+        consumer.stop_consumers()
         print("Consumers stopped.")

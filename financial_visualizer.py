@@ -504,3 +504,31 @@ class FinancialVisualizer:
             print(f"Error generating visualizations: {str(e)}")
             traceback.print_exc()
             return None
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

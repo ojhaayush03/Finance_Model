@@ -1,6 +1,6 @@
 import subprocess
 import sys
-from db_utils import MongoDBClient
+from data_ingestion.db_utils import MongoDBClient
 
 # Initialize MongoDB client
 db_client = MongoDBClient()

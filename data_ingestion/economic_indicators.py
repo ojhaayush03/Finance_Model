@@ -3,7 +3,7 @@ import pandas as pd
 import random
 from datetime import datetime, timedelta
 from fredapi import Fred
-from db_utils import MongoDBClient
+from data_ingestion.db_utils import MongoDBClient
 
 class EconomicIndicatorsCollector:
     def __init__(self, api_key=None):

@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Get ngrok URL from environment variables
-NGROK_URL = os.getenv("NGROK_URL", "https://1c27-34-27-171-29.ngrok-free.app/")
+NGROK_URL = os.getenv("NGROK_URL", "https://8c96b5d0e3db.ngrok-free.app/")
 
 # Function to get the ngrok URL
 def get_ngrok_url():

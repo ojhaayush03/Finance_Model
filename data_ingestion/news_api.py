@@ -3,7 +3,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 from newsapi import NewsApiClient
 from textblob import TextBlob
-from db_utils import MongoDBClient
+from data_ingestion.db_utils import MongoDBClient
 
 class FinancialNewsCollector:
     def __init__(self, api_key=None):

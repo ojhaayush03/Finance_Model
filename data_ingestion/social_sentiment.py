@@ -12,7 +12,7 @@ import logging
 # Add project root to path to import config
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))  
 from config import get_config
-from db_utils import MongoDBClient
+from data_ingestion.db_utils import MongoDBClient
 
 class SocialMediaSentimentAnalyzer:
     def __init__(self):
